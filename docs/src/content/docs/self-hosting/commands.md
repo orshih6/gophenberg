@@ -96,6 +96,39 @@ Every error goes to standard error, on a line that starts with
 `gophenberg:`. When the command itself was found, a misuse is followed
 by its help page.
 
+## On a SQLite database
+
+When `GOPHENBERG_DATABASE_URL` names a SQLite file, such as
+`sqlite:/srv/gophenberg/site.db`, only some commands run so far:
+
+| Command | On a SQLite database |
+| --- | --- |
+| `list`, `help` and `version` | Work as on PostgreSQL |
+| `check` | Works, and also checks the SQLite settings and the file |
+| `migrate` | Works |
+| `seed` | Without `-yes` it still prints `would store the demo data` and exits with code 0. With `-yes` it migrates the file, then exits with code 1 |
+| `serve` | Exits with code 1 before it opens anything |
+| `account:create-admin` | Migrates the file, then exits with code 1 before it asks for the password |
+| Every other `account:` command | Exits with code 1 before it opens the file, so even a missing file, a bad address or a bad SQLite setting gives the error below |
+
+Each command that stops names what it needs:
+
+```text
+gophenberg: serve: content, types and accounts do not run on SQLite yet, so this command needs GOPHENBERG_DATABASE_URL to name a PostgreSQL database
+```
+
+`seed -yes` says `seed:` and every `account:` command says
+`account commands:` in place of `serve:`. A plugin command that names
+a capability opens the file to register the plugins, then stops with
+the `account commands:` line too.
+
+`account:create-admin` and `seed -yes` migrate the file before they
+stop, and a plugin command opens it, so a missing file or a bad
+address stops each of them with its own error first, as it stops
+`migrate`.
+[A SQLite database](/self-hosting/configuration/#a-sqlite-database)
+covers the address, the file and its settings.
+
 ## Dry runs and -yes
 
 Five commands only show what they would change until you add `-yes`:
@@ -234,7 +267,8 @@ Reads every setting, registers the plugins and checks the command
 names, without touching the database. It prints
 `settings, plugins and command names are valid`, or names what it
 refuses, one line each, and exits with code 1. Run it before a
-rollout.
+rollout. On a SQLite database it also checks the SQLite settings and
+that the file exists on a local disk, still without connecting to it.
 
 ### help
 
@@ -268,6 +302,13 @@ lock in the database, so two servers starting together, or a server
 and `migrate`, never apply the same step at once. The second waits,
 then finds nothing left to do.
 
+On a SQLite database the lock is the file `<database file>.migrate.lock`,
+such as `site.db.migrate.lock`. It sits beside the file the path
+finally points at, so when the path is a symbolic link, the lock sits
+beside the file the link points at. A step waits for it up to
+`GOPHENBERG_SQLITE_MIGRATE_LOCK_WAIT`, 30 seconds unless set, then
+stops with an error. Never delete that file.
+
 ### seed
 
 ```text
@@ -285,6 +326,11 @@ A later run stops with an error naming the group when the demo's
 Post fields or Category fields group is turned off or no longer
 reaches its type. Never seed a production database.
 
+On a SQLite database the dry run still prints
+`would store the demo data` and exits with code 0, although `-yes`
+stops with code 1 after it migrates the file, see
+[on a SQLite database](#on-a-sqlite-database).
+
 ### serve
 
 ```text
@@ -296,6 +342,9 @@ see [stopping the server](/self-hosting/configuration/#stopping-the-server).
 The container image runs `serve` when it is given no command. A
 compose file or deployment that sets its own `command` must start it
 with `serve`, since a run with no command only prints the listing.
+
+On a SQLite database `serve` exits with code 1 before it opens
+anything, see [on a SQLite database](#on-a-sqlite-database).
 
 ### version
 
@@ -323,6 +372,11 @@ It needs no `-as`, since it is how a site gets its first admin:
 docker compose run --rm -T gophenberg \
   account:create-admin -email admin@example.com -name "Maria Perez" -role admin
 ```
+
+On a SQLite database it applies those steps, then exits with code 1
+and the `account commands:` error before it asks for the password.
+It is the only account command that changes the file, see
+[on a SQLite database](#on-a-sqlite-database).
 
 ### account:disable
 

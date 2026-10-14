@@ -13,6 +13,12 @@ store it over plain HTTP. Without HTTPS in front, nobody can log
 in. The one exception is `localhost`, which browsers trust.
 :::
 
+:::note[PostgreSQL, not SQLite]
+This page runs the site on PostgreSQL. Gophenberg can check and
+migrate a SQLite file, but it cannot serve a site from one yet, see
+[a SQLite database](/self-hosting/configuration/#a-sqlite-database).
+:::
+
 ## 1. The compose file
 
 Create a directory on your server with this `compose.yaml`:

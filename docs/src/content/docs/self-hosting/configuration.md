@@ -17,7 +17,7 @@ so it takes the default.
 
 | Variable | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `GOPHENBERG_DATABASE_URL` | Yes | | The PostgreSQL connection string |
+| `GOPHENBERG_DATABASE_URL` | Yes | | The PostgreSQL connection string, or `sqlite:` and the absolute path of a SQLite file. [A SQLite database](#a-sqlite-database) says what runs on one and lists its settings |
 | `GOPHENBERG_ADDR` | No | `localhost:8081` | Address the server listens on. The container image sets `0.0.0.0:8081` |
 | `GOPHENBERG_WEB_DIR` | No | | Where the built admin and the public stylesheets live. The image sets `/web` |
 | `GOPHENBERG_SITE_TITLE` | No | `Gophenberg` | The site name shown by the built-in renderer |
@@ -91,6 +91,95 @@ address nothing holds, a file that is missing or a request the server
 refused is never kept by any cache, however the windows are set. An
 answer to a signed in account is never kept by any cache either, not
 even that person's own browser.
+
+## A SQLite database
+
+Gophenberg can also keep its data in one SQLite file instead of a
+PostgreSQL server. Only part of Gophenberg runs on SQLite so far:
+`check` and `migrate` work, but the site cannot serve from the file
+yet.
+
+### The address
+
+Write `sqlite:` and the absolute path of the file:
+
+```sh
+GOPHENBERG_DATABASE_URL=sqlite:/srv/gophenberg/site.db
+```
+
+- The path must be absolute, so `sqlite:site.db` is refused.
+- Write no `//` after `sqlite:`, and no `?`, `#` or `%` anywhere in
+  the address. It takes no options. The settings below do that job.
+- An address that does not start with `sqlite:` is read as a
+  PostgreSQL one, as before.
+
+### Before the first run
+
+Gophenberg never creates the database file. Create an empty one first:
+
+```sh
+touch /srv/gophenberg/site.db
+```
+
+Without it, each command that opens the file, such as `check`,
+`migrate`, `seed -yes` and `account:create-admin`, stops with:
+
+```text
+gophenberg: open the database: sqlite: the database file does not exist: /srv/gophenberg/site.db, create an empty file at that path to start a new site
+```
+
+SQLite runs on Linux and macOS only, and the file must sit on a local
+disk. A file on a network file system, such as NFS, SMB or a Windows
+folder seen from WSL2 like `/mnt/c`, is refused, because SQLite's locks
+are not reliable there.
+
+The folder holding the file must stay writable for the user that runs
+Gophenberg, because SQLite keeps more files beside it:
+
+- `site.db-wal` and `site.db-shm` while a command has the database
+  open. SQLite removes them when the command ends cleanly. If a
+  command failed or was cut short, they can stay behind. Leave them
+  in place. The next run reads the changes they still hold.
+- `site.db.migrate.lock`, which every migration takes so that two
+  runs never migrate at once. It stays after the run. Never delete it.
+
+All three sit beside the file the path finally points at, so when
+the path is a symbolic link, they sit beside the file the link points
+at, not beside the link.
+
+### What runs on SQLite
+
+[On a SQLite database](/self-hosting/commands/#on-a-sqlite-database)
+lists what each command does on a SQLite file, and the error a
+command gives when it stops.
+
+[Cron jobs](/self-hosting/cron/), the session sweep included, run only
+while `serve` runs, so none run on a SQLite site yet. `check` still
+checks the cron settings.
+
+Plugins get no database on SQLite. Their database address is empty,
+their share of the database answers every statement with an error,
+and they cannot read posts or account names yet, see
+[the plugin SDK](/extending/the-plugin-sdk/#the-database).
+
+### The SQLite settings
+
+Only a `sqlite:` address reads these. A PostgreSQL address ignores
+them, so a bad value beside one stops nothing.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `GOPHENBERG_DATABASE_MAX_CONNS` | The larger of 4 and the number of CPUs | How many connections to the file stay open at most, 2 or more. Each one keeps its own page cache |
+| `GOPHENBERG_SQLITE_BUSY_TIMEOUT` | `5s` | How long a connection waits for a lock another one holds, in whole milliseconds, up to `596h31m23.647s` |
+| `GOPHENBERG_SQLITE_CACHE_SIZE` | `2000` | The page cache of each connection, in kibibytes, up to 2147483647. All the caches together may take this times `GOPHENBERG_DATABASE_MAX_CONNS` |
+| `GOPHENBERG_SQLITE_SYNCHRONOUS` | `full` | `full` writes the log to disk at every commit. `normal` writes it only at each checkpoint, which is faster, but a power cut can lose the last commits |
+| `GOPHENBERG_SQLITE_JOURNAL_SIZE_LIMIT` | | The size in bytes the write-ahead log is cut back to after a checkpoint. Unset sets no limit, so the log keeps the largest size it reached |
+| `GOPHENBERG_SQLITE_MIGRATE_LOCK_WAIT` | `30s` | How long a migration waits for the lock file before it stops with an error |
+| `GOPHENBERG_SQLITE_MIGRATE_LOCK_POLL` | `250ms` | How often a waiting migration tries the lock file again |
+
+`check` refuses a bad value and names it, for example
+`GOPHENBERG_SQLITE_SYNCHRONOUS: must be full or normal, got "off"` or
+`GOPHENBERG_DATABASE_MAX_CONNS: must be 2 or more on SQLite, got "1"`.
 
 ## The admin lists
 
@@ -266,6 +355,8 @@ folder could lose an upload it is saving at that moment.
 The server refuses to start, and says why, when:
 
 - `GOPHENBERG_DATABASE_URL` is missing.
+- `GOPHENBERG_DATABASE_URL` names a SQLite file, which the site cannot
+  serve from yet, see [a SQLite database](#a-sqlite-database).
 - `GOPHENBERG_TRUSTED_PROXIES` is not valid CIDR notation.
 - `GOPHENBERG_PUBLIC_URL` is not an `http` or `https` address naming
   only a host.
@@ -320,8 +411,10 @@ refuse to run.
 Run `check` before every rollout, with the new image and the settings
 it will run with. It reads every setting, the two above included,
 and loads the plugins, without starting anything or touching the
-database. It answers `settings, plugins and command names are valid`,
-or names the settings it refuses and exits with code 1:
+database. On a `sqlite:` address it also checks the SQLite settings
+and that the file exists on a local disk, still without connecting to
+it. It answers `settings, plugins and command names are valid`, or
+names the settings it refuses and exits with code 1:
 
 ```sh
 docker compose run --rm -T gophenberg check
