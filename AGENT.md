@@ -14,6 +14,7 @@ internal/app          the command line, config, db pool, auth wiring, what plugi
 internal/server       http.Handler, routes, middleware, theme reverse proxy
 internal/content      content domain package
 internal/postgres     data access (pgx + sqlc)
+internal/sqlite       data access on a sqlite: address (dbkit/sqlite + sqlc), the opener and its settings
 internal/contentbridge published content as the sdk ContentReader seam
 internal/cron         runs named jobs when due, under a lease, with no product words
 internal/publichtml   sanitizer for stored block markup on public surfaces
@@ -40,16 +41,17 @@ command and `gophenberg serve` to run the server.
 ## Stack
 
 - Backend: Go, `net/http` + chi v5, PostgreSQL (pgx/v5, sqlc, goose migrations), gouncer/authkit authentication
+- SQLite: `dbkit/sqlite` over the pure Go `modernc.org/sqlite`, sqlc and goose migrations. `check` and `migrate` run on a `sqlite:` address, and `serve`, `seed -yes` and the account commands answer a named error
 - Frontend: React + TypeScript, Vite, TanStack Router + Query, `@wordpress/ui` + `@wordpress/theme` (WordPress Design System), `@wordpress/block-editor` (Gutenberg)
 - Themes: Astro with the `@astrojs/node` standalone adapter, built to a self-contained artifact that runs without `node_modules`
-- Testing: stdlib table-driven tests, httptest, dbkit `pgtest` (backend), Vitest, Testing Library, MSW (frontend), Playwright (e2e)
+- Testing: stdlib table-driven tests, httptest, dbkit `pgtest` and `sqlitetest` (backend), Vitest, Testing Library, MSW (frontend), Playwright (e2e)
 
 ## Contributing
 
 1. Keep changes small and focused: one behavior per change.
 2. Every change ships with tests, written before the implementation.
 3. Every function carries a doc comment: Go in canonical form, TypeScript following tsdoc standard. Tests are the exception: a Go `Test`, `Benchmark` or `Fuzz` function and a TypeScript test callback carry none, because their name says what they verify. Helpers in test files still carry one. Lines wrap at 120 columns.
-4. Run `make test` and `make lint` before submitting. The database tests need `make db-up` and the two `GOPHENBERG_TEST_` settings of `.env.example`, in the environment or `.env`. On a small or busy machine, `GOFLAGS=-p=1 make test` tests one package at a time. CI enforces both, plus the race detector. It refuses a change that breaks the SDK API. While the SDK is below 1.0, a maintainer can allow the break with the `sdk-break` label.
+4. Run `make test` and `make lint` before submitting. The database tests need `make db-up` and the two `GOPHENBERG_TEST_` settings of `.env.example`, in the environment or `.env`. On a small or busy machine, `GOFLAGS=-p=1 make test` tests one package at a time. CI enforces both, plus the race detector. It refuses a change that breaks the SDK API. While the SDK is below 1.0, a maintainer can allow the break with the `sdk-break` label. `make cover` leaves `internal/sqlite` out, and `make cover-sqlite`, which needs no database server, covers it.
 
 ## License
 
