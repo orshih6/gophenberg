@@ -28,9 +28,9 @@ each version and how to move your plugin to it.
 | Field | What it is |
 | --- | --- |
 | `DB` | The plugin's share of the site's database, described [below](#the-database) |
-| `DatabaseURL` | The PostgreSQL connection string, for a plugin that still opens its own connection |
+| `DatabaseURL` | The PostgreSQL connection string, for a plugin that still opens its own connection. Empty on a SQLite database |
 | `Content` | A read view of published content |
-| `Accounts` | Reads the names, roles and avatars of many accounts in one call, described [below](#reading-account-names) |
+| `Accounts` | Reads the names, roles and avatars of many accounts in one call, described [below](#reading-account-names). Not ready on a SQLite database yet |
 | `Env` | Reads the settings under the `GOPHENBERG_` prefix, for the plugin's own configuration |
 | `Getenv` | Reads any environment variable by its full name, as it is set |
 
@@ -65,7 +65,8 @@ does that. Commands such as `list`, `check` and `migrate` register
 every plugin and stop it again without ever starting it. Only
 `serve` starts the plugins. So `Stop` must work even when `Start`
 never ran, and return by the time its context ends. When `list` or
-`help` registers the plugins, `DatabaseURL` can be empty.
+`help` registers the plugins, `DatabaseURL` can be empty. On a SQLite
+database it is always empty.
 
 When a plugin fails to register or to declare its types, Gophenberg
 stops every plugin that registered. When one fails to start, it
@@ -86,7 +87,7 @@ _, err := p.db.Exec(ctx, "INSERT INTO greetings (name) VALUES ($1)", name)
 - `Exec`, `Query` and `QueryRow` take PostgreSQL's `$1`, `$2`
   placeholders. `Begin` starts a transaction that offers the same
   three, plus `Commit` and `Rollback`. `Engine` names the engine,
-  `sdk.Postgres` today.
+  `sdk.Postgres` on PostgreSQL and `sdk.SQLite` on SQLite.
 - Each statement, open result set and transaction holds one slot
   until it ends, so close every `Rows`. The share holds
   `GOPHENBERG_PLUGIN_DB_CONNS` slots for each plugin, 4 by default.
@@ -101,6 +102,15 @@ _, err := p.db.Exec(ctx, "INSERT INTO greetings (name) VALUES ($1)", name)
 - The share opens once every plugin registered. Keep `deps.DB` in
   `Register` and use it from `Start` on. A statement during
   `Register` is refused.
+- On a SQLite database the share stays closed for now. `Exec`,
+  `Query`, `QueryRow` and `Begin` each answer
+  `the plugin database share is closed while GOPHENBERG_DATABASE_URL names a SQLite database`.
+  A `Migrate` that runs through `deps.DB` gets the same error, so
+  `gophenberg migrate` stops there. `Engine` tells a plugin which
+  database it runs on before it sends a statement.
+- On a SQLite database the content and account reads of `Deps` are
+  not ready yet either, so check `deps.DB.Engine()` first and skip
+  them when it answers `sdk.SQLite`.
 
 ## Reading content
 
@@ -135,6 +145,10 @@ draw, so a page of fifteen authors costs one read:
 ```go
 people, err := deps.Accounts.People(ctx, authorIDs, 96)
 ```
+
+On a SQLite database `People` does not work yet. Check
+`deps.DB.Engine()` first and skip the call when it answers
+`sdk.SQLite`.
 
 The answer is a map keyed by `sdk.ID`. Each `sdk.Person` carries
 `ID`, `Name`, `Role`, `Avatar` and `Disabled`. `Name` is the display
