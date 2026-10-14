@@ -74,6 +74,8 @@ github.com/gopherium/framework/gonsole v0.7.0 h1:JluS72WcE6LXcBihJB+5zdhX7IUiLZx
 github.com/gopherium/framework/gonsole v0.7.0/go.mod h1:6ZLlrT2q5W8Pk2BrD7WgorL6b68nx2n2OX1Rg8FKwAo=
 github.com/gopherium/framework/gonsole/auth v0.7.0 h1:e1s0LJlLK2zPmrzexzMix7pkiTIXqRe0bd83MzYsRiE=
 github.com/gopherium/framework/gonsole/auth v0.7.0/go.mod h1:t9PxTMk18NqcoXgxokdUQnOvNPYfcW2HXVjx8fPxei0=
+github.com/gopherium/framework/gonsole/auth/sqlite v0.1.0 h1:JJqzz+eRzEF6hJZhvXap8pjNWK33LTpzV0JAnujmONI=
+github.com/gopherium/framework/gonsole/auth/sqlite v0.1.0/go.mod h1:f6oahZPvSMEr1lyGNcCGvzip02BhkO+LVngTHnzJHZc=
 github.com/gopherium/framework/pluginkit v0.6.0 h1:hE/w3Tg6Y0SyhEuBZXvkqGo4AvrgU0Lr3RZ7xsjHfAI=
 github.com/gopherium/framework/pluginkit v0.6.0/go.mod h1:PJqz8GTbhNPTYZB2IPOd9tyjWB3COO5cdRYAoLENRCM=
 github.com/gopherium/gouncer v0.5.0 h1:rHiZfXmwhTgTaEgvFfq5csDmRyfbGtHIk8ySwS+Pyco=

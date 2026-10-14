@@ -75,7 +75,7 @@ func run(
 	cfg.Theme, cfg.Themes = themes.Holder(), themes
 	cfg.Cron, cfg.CronSecret, cfg.CronOnVisits = jobs.runs, settings.cron.secret, settings.cron.onVisits
 	if settings.mediaDir != "" {
-		cfg.Media = recoveredLibrary(ctx, mediaConfigFrom(settings, built.settings), built.media.Saved, logger)
+		cfg.Media = recoveredLibrary(ctx, mediaConfigFrom(settings, built.settings), built.saved, logger)
 		cfg.MediaStore = built.library
 		cfg.MediaFiles = os.DirFS(settings.mediaDir)
 	}

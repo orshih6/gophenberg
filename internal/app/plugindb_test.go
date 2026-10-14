@@ -159,6 +159,40 @@ func TestAnUnopenedShareRefusesEveryStatement(t *testing.T) {
 	}
 }
 
+func TestASQLiteShareNamesSQLiteAsItsEngine(t *testing.T) {
+	t.Parallel()
+
+	share := &pluginLane{sqlite: true}
+
+	if share.Engine() != sdk.SQLite {
+		t.Errorf("Engine() = %q, want sqlite", share.Engine())
+	}
+}
+
+func TestASQLiteShareAnswersEveryStatementWithItsNamedError(t *testing.T) {
+	t.Parallel()
+
+	share := &pluginLane{sqlite: true}
+	var scanned int
+
+	_, execErr := share.Exec(t.Context(), "SELECT 1")
+	rows, queryErr := share.Query(t.Context(), "SELECT 1")
+	row := share.QueryRow(t.Context(), "SELECT 1")
+	tx, beginErr := share.Begin(t.Context())
+
+	if rows != nil || tx != nil {
+		t.Errorf("a SQLite share answered rows %v and tx %v, want neither", rows, tx)
+	}
+	for name, err := range map[string]error{
+		"Exec": execErr, "Query": queryErr, "QueryRow Err": row.Err(), "QueryRow Scan": row.Scan(&scanned),
+		"Begin": beginErr,
+	} {
+		if !errors.Is(err, errLaneOnSQLite) {
+			t.Errorf("%s on a SQLite share = %v, want %v", name, err, errLaneOnSQLite)
+		}
+	}
+}
+
 func TestOpeningAShareTheOptionsRefuseReturnsTheRefusal(t *testing.T) {
 	t.Parallel()
 

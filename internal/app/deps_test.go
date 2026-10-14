@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gopherium/framework/goncierge"
 	"github.com/gopherium/framework/gonsole/testkit"
 	"github.com/gopherium/framework/pluginkit"
 	"github.com/gopherium/gouncer/avatar"
@@ -160,6 +161,28 @@ func TestComposeInDescribeModeNeedsNoDatabaseSetting(t *testing.T) {
 	}
 	if held := handed.Env.Value("FEED_ITEMS"); held != "" {
 		t.Errorf("Env reads FEED_ITEMS as %q with no environment, want nothing", held)
+	}
+}
+
+func TestPluginsAreLentNoDatabaseAddressOnSQLite(t *testing.T) {
+	t.Parallel()
+
+	deps := pluginDeps(composeConfig{databaseURL: sqliteAddress}, site{lane: &pluginLane{sqlite: true}}, nil)
+
+	if deps.DatabaseURL != "" {
+		t.Errorf("DatabaseURL = %q, want no address lent on a SQLite database", deps.DatabaseURL)
+	}
+}
+
+func TestReadyOpensNoPluginShareOnSQLite(t *testing.T) {
+	t.Parallel()
+
+	built := site{lane: &pluginLane{sqlite: true}, roles: goncierge.New()}
+
+	err := built.ready(laneSettings{conns: 4, reserve: 2, queryTimeout: time.Second, txTimeout: time.Second})
+
+	if err != nil || built.lane.share.Load() != nil {
+		t.Errorf("ready() = %v with share %v, want nil and the share left closed", err, built.lane.share.Load())
 	}
 }
 

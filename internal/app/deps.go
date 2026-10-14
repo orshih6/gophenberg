@@ -21,7 +21,7 @@ import (
 // errNamesSentOut reports the Gravatar default image that would send letters of each name to Gravatar.
 var errNamesSentOut = errors.New("this default sends names to Gravatar, the initials mode draws them on the site")
 
-// compose builds the pool, the stores, the registered plugins, their roles and their database share, starting nothing.
+// compose builds the stores the address picks, the plugins, their roles and their share off SQLite, starting nothing.
 func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]sdk.Plugin, error)) (site, error) {
 	lane, err := laneSettingsFrom(cfg.getenv)
 	if err != nil {
@@ -35,7 +35,7 @@ func compose(ctx context.Context, cfg composeConfig, plugins func(sdk.Deps) ([]s
 	if err != nil {
 		return site{}, err
 	}
-	built.lane, built.avatars = &pluginLane{}, avatars
+	built.lane, built.avatars = &pluginLane{sqlite: onSQLite(cfg.databaseURL)}, avatars
 	built.roles = cmp.Or(cfg.roles, goncierge.New())
 	accounts := accountbridge.New(built.users, accountbridge.Options{
 		Avatar: avatarOf(avatars), Timeout: lane.queryTimeout,
@@ -86,28 +86,35 @@ func avatarOf(options avatar.Options) func(name, email string, size int) string 
 	}
 }
 
-// ready declares the core's and the registered plugins' roles, then opens the plugins' database share.
+// ready declares the core's and the registered plugins' roles, then opens the plugins' database share off SQLite.
 func (s site) ready(lane laneSettings) error {
 	if err := declareRoles(s.roles, role.Core(), s.registered); err != nil {
 		return err
 	}
+	if s.lane.sqlite {
+		return nil
+	}
 	return s.lane.open(s.pool, len(s.registered), lane)
 }
 
-// close closes the plugins' database share and then the pool.
+// close closes the plugins' database share and then releases the pool, nothing on SQLite.
 func (s site) close() {
 	s.lane.close()
-	s.pool.Close()
+	s.release()
 }
 
-// pluginDeps returns what the site lends every plugin, with a settings reader that is never nil.
+// pluginDeps returns what the site lends every plugin, a settings reader that is never nil and no address on SQLite.
 func pluginDeps(cfg composeConfig, built site, accounts sdk.AccountReader) sdk.Deps {
 	getenv := cfg.getenv
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
+	databaseURL := cfg.databaseURL
+	if onSQLite(databaseURL) {
+		databaseURL = ""
+	}
 	return sdk.Deps{
-		DatabaseURL: cfg.databaseURL,
+		DatabaseURL: databaseURL,
 		DB:          built.lane,
 		Content:     contentbridge.New(built.content, built.registry, built.library, built.settings),
 		Accounts:    accounts,
